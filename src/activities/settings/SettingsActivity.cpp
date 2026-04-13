@@ -3,6 +3,8 @@
 #include <GfxRenderer.h>
 #include <Logging.h>
 
+#include <cstring>
+
 #include "ButtonRemapActivity.h"
 #include "CalibreSettingsActivity.h"
 #include "ClearCacheActivity.h"
@@ -14,6 +16,7 @@
 #include "SettingsList.h"
 #include "StatusBarSettingsActivity.h"
 #include "activities/network/WifiSelectionActivity.h"
+#include "activities/util/KeyboardEntryActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 
@@ -52,6 +55,7 @@ void SettingsActivity::onEnter() {
   systemSettings.push_back(SettingInfo::Action(StrId::STR_CLEAR_READING_CACHE, SettingAction::ClearCache));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_CHECK_UPDATES, SettingAction::CheckForUpdates));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_LANGUAGE, SettingAction::Language));
+  systemSettings.push_back(SettingInfo::Action(StrId::STR_HELLO_WORLD_EDIT, SettingAction::HelloWorldEdit));
   readerSettings.push_back(SettingInfo::Action(StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar));
 
   // Reset selection to first category
@@ -191,6 +195,20 @@ void SettingsActivity::toggleCurrentSetting() {
         break;
       case SettingAction::Language:
         startActivityForResult(std::make_unique<LanguageSelectActivity>(renderer, mappedInput), resultHandler);
+        break;
+      case SettingAction::HelloWorldEdit:
+        startActivityForResult(
+            std::make_unique<KeyboardEntryActivity>(renderer, mappedInput, std::string(tr(STR_HELLO_WORLD_EDIT)),
+                                                   std::string(SETTINGS.helloWorldText), 63),
+            [](const ActivityResult& r) {
+              if (!r.isCancelled) {
+                if (const auto* kr = std::get_if<KeyboardResult>(&r.data)) {
+                  strncpy(SETTINGS.helloWorldText, kr->text.c_str(), sizeof(SETTINGS.helloWorldText) - 1);
+                  SETTINGS.helloWorldText[sizeof(SETTINGS.helloWorldText) - 1] = '\0';
+                  SETTINGS.saveToFile();
+                }
+              }
+            });
         break;
       case SettingAction::None:
         // Do nothing

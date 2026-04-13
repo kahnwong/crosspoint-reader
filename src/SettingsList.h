@@ -136,6 +136,10 @@ inline const std::vector<SettingInfo>& getSettingsList() {
                         StrId::STR_CUSTOMISE_STATUS_BAR),
       SettingInfo::Toggle(StrId::STR_BATTERY, &CrossPointSettings::statusBarBattery, "statusBarBattery",
                           StrId::STR_CUSTOMISE_STATUS_BAR),
+      // --- Hello World ---
+      SettingInfo::String(StrId::STR_HELLO_WORLD_TEXT, SETTINGS.helloWorldText, sizeof(SETTINGS.helloWorldText),
+                        "helloWorldText", StrId::STR_HELLO_WORLD),
+
   };
   return list;
 }
