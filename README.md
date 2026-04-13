@@ -1,5 +1,18 @@
 # CrossPoint Reader
 
+## Setup
+
+```bash
+sudo adduser $USER dialout
+curl -fsSL https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/system/99-platformio-udev.rules | sudo tee /etc/udev/rules.d/99-platformio-udev.rules
+uv tool install platformio
+git submodule update --init --recursive
+
+pio run --target upload
+```
+
+---
+
 Firmware for the **Xteink X4** e-paper display reader (unaffiliated with Xteink).
 Built using **PlatformIO** and targeting the **ESP32-C3** microcontroller.
 
