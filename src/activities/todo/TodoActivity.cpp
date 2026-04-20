@@ -158,10 +158,6 @@ void TodoActivity::toggleStruck(int index) {
 // --- Network ---
 
 void TodoActivity::startRefresh() {
-  if (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0)) {
-    onWifiConnected();
-    return;
-  }
   launchWifiSelection();
 }
 
@@ -184,6 +180,7 @@ void TodoActivity::launchWifiSelection() {
 }
 
 void TodoActivity::onWifiConnected() {
+  consumeConfirm = false;  // WiFi selection is done; clear guard so next Confirm works
   state = State::LOADING;
   requestUpdate();
   fetchTodos();
@@ -225,6 +222,8 @@ void TodoActivity::fetchTodos() {
     errorMessage = errBuf;
     state = State::ERROR;
     http.end();
+    WiFi.disconnect();
+    WiFi.mode(WIFI_OFF);
     requestUpdate();
     return;
   }
@@ -235,11 +234,15 @@ void TodoActivity::fetchTodos() {
   if (!parseJson(body)) {
     errorMessage = tr(STR_FETCH_FEED_FAILED);
     state = State::ERROR;
+    WiFi.disconnect();
+    WiFi.mode(WIFI_OFF);
     requestUpdate();
     return;
   }
 
   saveCache(body);
+  WiFi.disconnect();
+  WiFi.mode(WIFI_OFF);
   selectorIndex = 0;
   state = State::BROWSING;
   requestUpdate();
