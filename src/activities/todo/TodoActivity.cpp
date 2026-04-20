@@ -10,6 +10,7 @@
 #include <NetworkClientSecure.h>
 #include <WiFi.h>
 
+#include <ctime>
 #include <memory>
 
 #include "CrossPointSettings.h"
@@ -25,6 +26,8 @@ void TodoActivity::onEnter() {
   selectorIndex = 0;
   errorMessage.clear();
   consumeConfirm = false;
+  downLongHandled = false;
+  loadStruckState();
   loadCache();
   requestUpdate();
 }
@@ -33,6 +36,8 @@ void TodoActivity::onExit() {
   Activity::onExit();
   WiFi.mode(WIFI_OFF);
 }
+
+// --- Cache ---
 
 void TodoActivity::loadCache() {
   if (!Storage.exists(CACHE_PATH)) {
@@ -81,6 +86,76 @@ bool TodoActivity::parseJson(const String& json) {
   }
   return true;
 }
+
+// --- Struck state ---
+
+void TodoActivity::loadStruckState() {
+  struckItems.clear();
+  if (!Storage.exists(STRUCK_PATH)) {
+    return;
+  }
+  const String json = Storage.readFile(STRUCK_PATH);
+  if (json.isEmpty()) {
+    return;
+  }
+  JsonDocument doc;
+  if (deserializeJson(doc, json)) {
+    return;
+  }
+  JsonObject obj = doc.as<JsonObject>();
+  for (JsonPair kv : obj) {
+    struckItems[kv.key().c_str()] = kv.value().as<uint32_t>();
+  }
+  pruneExpiredStruck();
+}
+
+void TodoActivity::saveStruckState() {
+  pruneExpiredStruck();
+  JsonDocument doc;
+  JsonObject obj = doc.to<JsonObject>();
+  for (const auto& kv : struckItems) {
+    obj[kv.first] = kv.second;
+  }
+  String out;
+  serializeJson(doc, out);
+  Storage.mkdir("/.crosspoint");
+  Storage.writeFile(STRUCK_PATH, out);
+}
+
+void TodoActivity::pruneExpiredStruck() {
+  const uint32_t now = static_cast<uint32_t>(time(nullptr));
+  // Only prune if clock is synced (epoch > year 2020)
+  if (now < 1577836800UL) {
+    return;
+  }
+  for (auto it = struckItems.begin(); it != struckItems.end();) {
+    if (now - it->second > STRUCK_TTL_S) {
+      it = struckItems.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
+bool TodoActivity::isStruck(int index) const {
+  if (index < 0 || index >= static_cast<int>(displayItems.size())) return false;
+  return struckItems.count(displayItems[index]) > 0;
+}
+
+void TodoActivity::toggleStruck(int index) {
+  if (index < 0 || index >= static_cast<int>(displayItems.size())) return;
+  const std::string& key = displayItems[index];
+  if (struckItems.count(key)) {
+    struckItems.erase(key);
+  } else {
+    const uint32_t now = static_cast<uint32_t>(time(nullptr));
+    // If clock not synced, store a sentinel so it persists until next boot prune
+    struckItems[key] = (now < 1577836800UL) ? 1577836800UL : now;
+  }
+  saveStruckState();
+}
+
+// --- Network ---
 
 void TodoActivity::startRefresh() {
   if (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0)) {
@@ -170,6 +245,8 @@ void TodoActivity::fetchTodos() {
   requestUpdate();
 }
 
+// --- Loop ---
+
 void TodoActivity::loop() {
   if (state == State::WIFI_SELECTION) {
     return;
@@ -211,16 +288,33 @@ void TodoActivity::loop() {
   }
 
   if (!displayItems.empty()) {
-    buttonNavigator.onNextRelease([this] {
-      selectorIndex = ButtonNavigator::nextIndex(selectorIndex, displayItems.size());
+    // Long press Down or Right = toggle strikethrough (one-shot)
+    const bool downHeld = mappedInput.isPressed(MappedInputManager::Button::Down);
+    const bool rightHeld = mappedInput.isPressed(MappedInputManager::Button::Right);
+    if ((downHeld || rightHeld) && mappedInput.getHeldTime() >= LONG_PRESS_MS && !downLongHandled) {
+      downLongHandled = true;
+      toggleStruck(selectorIndex);
       requestUpdate();
-    });
+    }
+    if (mappedInput.wasReleased(MappedInputManager::Button::Down) ||
+        mappedInput.wasReleased(MappedInputManager::Button::Right)) {
+      if (downLongHandled) {
+        // Swallow the release — don't navigate
+        downLongHandled = false;
+      } else {
+        selectorIndex = ButtonNavigator::nextIndex(selectorIndex, displayItems.size());
+        requestUpdate();
+      }
+    }
+
     buttonNavigator.onPreviousRelease([this] {
       selectorIndex = ButtonNavigator::previousIndex(selectorIndex, displayItems.size());
       requestUpdate();
     });
   }
 }
+
+// --- Render ---
 
 void TodoActivity::render(RenderLock&&) {
   const auto& metrics = UITheme::getInstance().getMetrics();
@@ -263,7 +357,11 @@ void TodoActivity::render(RenderLock&&) {
       renderer, Rect{0, listTop, pageWidth, listHeight},
       static_cast<int>(displayItems.size()), selectorIndex,
       [this](int i) { return displayItems[i]; },
-      nullptr, nullptr, nullptr, true);
+      nullptr, nullptr,
+      [this](int i) -> std::string {
+        return isStruck(i) ? std::string(tr(STR_TODO_DONE)) : std::string();
+      },
+      true);
 
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer();
