@@ -136,6 +136,12 @@ inline const std::vector<SettingInfo>& getSettingsList() {
                         StrId::STR_CUSTOMISE_STATUS_BAR),
       SettingInfo::Toggle(StrId::STR_BATTERY, &CrossPointSettings::statusBarBattery, "statusBarBattery",
                           StrId::STR_CUSTOMISE_STATUS_BAR),
+      // --- Todo ---
+      SettingInfo::String(StrId::STR_TODO_API_ENDPOINT, SETTINGS.todoApiEndpoint, sizeof(SETTINGS.todoApiEndpoint),
+                        "todoApiEndpoint", StrId::STR_TODO),
+      SettingInfo::String(StrId::STR_TODO_API_KEY, SETTINGS.todoApiKey, sizeof(SETTINGS.todoApiKey),
+                        "todoApiKey", StrId::STR_TODO),
+
   };
   return list;
 }

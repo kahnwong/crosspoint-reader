@@ -199,6 +199,9 @@ class CrossPointSettings {
   uint8_t showHiddenFiles = 0;
   // Image rendering mode in EPUB reader
   uint8_t imageRendering = IMAGES_DISPLAY;
+  // Todo API settings
+  char todoApiEndpoint[128] = "";
+  char todoApiKey[128] = "";
 
   ~CrossPointSettings() = default;
 
