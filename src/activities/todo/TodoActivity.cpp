@@ -241,6 +241,7 @@ void TodoActivity::fetchTodos() {
   }
 
   saveCache(body);
+  pruneExpiredStruck();
   WiFi.disconnect();
   WiFi.mode(WIFI_OFF);
   selectorIndex = 0;
